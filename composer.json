@@ -1,0 +1,24 @@
+{
+  "name": "carono/telegram-bot-components",
+  "description": "telegram bot components",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Aleksandr Kasyanov",
+      "email": "info@carono.ru",
+      "homepage": "http://carono.ru"
+    }
+  ],
+  "require": {
+    "opis/closure": "@stable",
+    "telegram-bot/api": "@stable",
+    "ext-json": "*",
+    "ext-mbstring": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "carono\\telegram\\": "src"
+    }
+  }
+}
