@@ -11,14 +11,20 @@
     }
   ],
   "require": {
-    "opis/closure": "@stable",
     "telegram-bot/api": "@stable",
     "ext-json": "*",
-    "ext-mbstring": "*"
+    "ext-mbstring": "*",
+    "symfony/cache": "@stable",
+    "charescape/serialize-closure": "^3.8"
   },
   "autoload": {
     "psr-4": {
       "carono\\telegram\\": "src"
+    }
+  },
+  "config": {
+    "allow-plugins": {
+      "yiisoft/yii2-composer": true
     }
   }
 }

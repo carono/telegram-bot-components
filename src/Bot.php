@@ -3,11 +3,14 @@
 
 namespace carono\telegram;
 
+use carono\telegram\abs\Command;
 use carono\telegram\abs\Model;
 use carono\telegram\dto\CallbackQuery;
 use carono\telegram\dto\Message;
 use carono\telegram\dto\MyChatMember;
 use carono\telegram\helpers\StringHelper;
+use carono\telegram\traits\CacheTrait;
+use ReflectionClass;
 
 /**
  * Class Bot
@@ -20,14 +23,16 @@ use carono\telegram\helpers\StringHelper;
  */
 class Bot extends Model
 {
+    use CacheTrait;
+
     protected $request;
     protected $client;
     public $token;
     protected $hears = [];
     protected $hearsKeyboard = [];
     public $name;
-    public $namespaceButtons;
-    public $namespaceCommands;
+    public $buttonsFolder;
+    public $commandsFolder;
 
     public function getClient()
     {
@@ -103,10 +108,10 @@ class Bot extends Model
 
     public function ask($message, $closure, $retries = 1)
     {
-        $key = ['ask', $this->getFromId()];
+        $key = json_encode(['ask', $this->getFromId()]);
         $this->say($message);
         $data = ['closure' => $closure, 'retries' => --$retries];
-        \Yii::$app->cache->set($key, \Opis\Closure\serialize($data), 300);
+        static::setCacheValue($key, \Opis\Closure\serialize($data));
         return $this;
     }
 
@@ -146,48 +151,52 @@ class Bot extends Model
             }
             $command = explode('/', $arr[0]);
             $button = $command[0];
-            $class = $this->namespaceButtons . '\\' . StringHelper::camelize($button);
-            $method = StringHelper::camelize($command[1]);
+            $file = $this->buttonsFolder . DIRECTORY_SEPARATOR . StringHelper::camelize($button) . '.php';
+            $class = StringHelper::getClassFromFile($file);
 
+            $method = StringHelper::camelize($command[1]);
+            var_dump($class);
             if (class_exists($class)) {
                 $class::run($method, array_merge([$this], $params));
             }
         }
 
-        $namespace = $this->namespaceCommands;
-        $dir = \Yii::getAlias('@' . strtr($namespace, ['\\' => '/']));
+        $dir = $this->commandsFolder;
         foreach (glob("$dir/*.php") as $file) {
-            $class = $namespace . '\\' . pathinfo($file, PATHINFO_FILENAME);
+            $class = StringHelper::getClassFromFile($file);
             $reflect = new \ReflectionClass($class);
-            if (!$reflect->isAbstract()) {
+            if (!$reflect->isAbstract() && $reflect->isSubclassOf(Command::class)) {
                 $command = new $class;
                 call_user_func([$command, 'register'], $this);
             }
         }
 
         if (empty($this->callback_query) && !empty($this->message)) {
-            $key = ['ask', $this->message->from->id];
-            if ($closureData = \Yii::$app->cache->get($key)) {
+            $key = json_encode(['ask', $this->message->from->id]);
+            var_dump(111);
+            if ($closureData = static::getCacheValue($key)) {
                 $closureData = \Opis\Closure\unserialize($closureData);
                 if ($closureData['retries'] < 0) {
-                    \Yii::$app->cache->delete($key);
+                    static::getCache()->delete($key);
                 } else {
                     $closureData['retries'] -= 1;
-                    \Yii::$app->cache->set($key, \Opis\Closure\serialize($closureData), 300);
+                    static::setCacheValue($key, \Opis\Closure\serialize($closureData));
                 }
                 if (call_user_func($closureData['closure'], $this, $this->message->text ?? '')) {
-                    \Yii::$app->cache->delete($key);
+                    static::getCache()->delete($key);
                 }
 
                 return '';
             }
 
+            if (empty($this->message)) {
+                return '';
+            }
+
+            $text = $this->message->text ?? '';
             foreach ($this->hears as $data) {
                 $message = $data['message'];
-                if (empty($this->message)) {
-                    continue;
-                }
-                $text = $this->message->text ?? '';
+
                 if ($data['personally'] && mb_strpos($text, $this->name, 0, 'UTF-8') === false && $this->message->chat->type !== 'private') {
                     continue;
                 }
@@ -197,14 +206,6 @@ class Bot extends Model
             }
         }
 
-//        foreach ($this->hearsKeyboard as $message => $data) {
-//            if (empty($this->callback_query)) {
-//                continue;
-//            }
-//            if ($this->callback_query->data == $message) {
-//                call_user_func($data['closure'], $this);
-//            }
-//        }
         return '';
     }
 }
