@@ -153,9 +153,8 @@ class Bot extends Model
             $button = $command[0];
             $file = $this->buttonsFolder . DIRECTORY_SEPARATOR . StringHelper::camelize($button) . '.php';
             $class = StringHelper::getClassFromFile($file);
-
             $method = StringHelper::camelize($command[1]);
-            var_dump($class);
+
             if (class_exists($class)) {
                 $class::run($method, array_merge([$this], $params));
             }
@@ -173,23 +172,20 @@ class Bot extends Model
 
         if (empty($this->callback_query) && !empty($this->message)) {
             $key = json_encode(['ask', $this->message->from->id]);
-            var_dump(111);
             if ($closureData = static::getCacheValue($key)) {
                 $closureData = \Opis\Closure\unserialize($closureData);
                 if ($closureData['retries'] < 0) {
-                    static::getCache()->delete($key);
+//                    static::getCache()->delete($key);
+                    static::setCacheValue($key, null);
                 } else {
                     $closureData['retries'] -= 1;
                     static::setCacheValue($key, \Opis\Closure\serialize($closureData));
                 }
                 if (call_user_func($closureData['closure'], $this, $this->message->text ?? '')) {
-                    static::getCache()->delete($key);
+//                    static::getCache()->delete($key);
+                    static::setCacheValue($key, null);
                 }
 
-                return '';
-            }
-
-            if (empty($this->message)) {
                 return '';
             }
 
