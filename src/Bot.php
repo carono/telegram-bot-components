@@ -86,24 +86,23 @@ class Bot extends Model
 
     public function sayPrivate($message)
     {
-        if (isset($this->message)) {
-            return $this->getClient()->sendMessage($this->message->from->id, $message);
-        }
-        if (isset($this->callback_query)) {
-            return $this->getClient()->sendMessage($this->callback_query->from->id, $message);
-        }
-        return false;
+        $chatId = $this->getFromId();
+        return $this->getClient()->sendMessage($chatId, $message);
     }
 
     public function getFromId()
     {
+        $chatId = null;
+        if (isset($this->chat_join_request)) {
+            $chatId = $this->chat_join_request->from->id;
+        }
         if (isset($this->message)) {
-            return $this->message->from->id;
+            $chatId = $this->message->from->id;
         }
         if (isset($this->callback_query)) {
-            return $this->callback_query->from->id;
+            $chatId = $this->callback_query->from->id;
         }
-        return null;
+        return $chatId;
     }
 
     public function ask($message, $closure, $retries = 1)
