@@ -36,7 +36,7 @@ class Bot extends Model
 
     public function getClient()
     {
-        return $this->client ?: $this->client = new  \TelegramBot\Api\BotApi($this->token);
+        return $this->client ?: $this->client = new \TelegramBot\Api\BotApi($this->token);
     }
 
     public function reply($message)
@@ -87,10 +87,10 @@ class Bot extends Model
     public function sayPrivate($message)
     {
         if (isset($this->message)) {
-            return $this->getClient()->sendMessage($this->message->from->id, $message, 'html');
+            return $this->getClient()->sendMessage($this->message->from->id, $message);
         }
         if (isset($this->callback_query)) {
-            return $this->getClient()->sendMessage($this->callback_query->from->id, $message, 'html');
+            return $this->getClient()->sendMessage($this->callback_query->from->id, $message);
         }
         return false;
     }
@@ -175,17 +175,19 @@ class Bot extends Model
             if ($closureData = static::getCacheValue($key)) {
                 $closureData = \Opis\Closure\unserialize($closureData);
                 if ($closureData['retries'] < 0) {
-//                    static::getCache()->delete($key);
-                    static::setCacheValue($key, null);
+                    static::getCache()->delete($key);
                 } else {
                     $closureData['retries'] -= 1;
                     static::setCacheValue($key, \Opis\Closure\serialize($closureData));
                 }
                 if (call_user_func($closureData['closure'], $this, $this->message->text ?? '')) {
-//                    static::getCache()->delete($key);
-                    static::setCacheValue($key, null);
+                    static::getCache()->delete($key);
                 }
 
+                return '';
+            }
+
+            if (empty($this->message)) {
                 return '';
             }
 

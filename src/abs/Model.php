@@ -49,33 +49,25 @@ abstract class Model implements \ArrayAccess
         return $this->container[$offset] ?? null;
     }
 
-    /**
-     * @param $json
-     * @return void
-     */
     public function load($json)
     {
-        if (!empty($json)) {
-            return;
-        }
         if (is_string($json)) {
-            $json = json_decode($json);
-        }
-        if (is_array($json)) {
-            $json = json_decode(json_encode($json));
+            $json = json_decode($json, true);
         }
 
-        foreach ($json as $attribute => $value) {
-            if (is_array($value)) {
-                $className = str_replace(' ', '', StringHelper::mb_ucwords(preg_replace('/[^\pL\pN]+/u', ' ', $attribute), 'UTF-8'));
-                $class = __NAMESPACE__ . "\\" . ucfirst($className);
-                if (class_exists($class)) {
-                    $model = new $class;
-                    $model->load($value);
-                    $value = $model;
+        if (!empty($json)) {
+            foreach ($json as $attribute => $value) {
+                if (is_array($value)) {
+                    $className = str_replace(' ', '', StringHelper::mb_ucwords(preg_replace('/[^\pL\pN]+/u', ' ', $attribute), 'UTF-8'));
+                    $class = __NAMESPACE__ . "\\" . ucfirst($className);
+                    if (class_exists($class)) {
+                        $model = new $class;
+                        $model->load($value);
+                        $value = $model;
+                    }
                 }
+                $this->$attribute = $value;
             }
-            $this->$attribute = $value;
         }
     }
 }
