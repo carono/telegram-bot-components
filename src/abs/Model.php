@@ -52,7 +52,7 @@ abstract class Model implements \ArrayAccess
     public function load($json)
     {
         if (is_string($json)) {
-            $json = json_decode($json, true);
+            $json = json_decode($json);
         }
 
         if (!empty($json)) {
