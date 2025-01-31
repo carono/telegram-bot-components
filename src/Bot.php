@@ -11,6 +11,7 @@ use carono\telegram\dto\MyChatMember;
 use carono\telegram\helpers\StringHelper;
 use carono\telegram\traits\CacheTrait;
 use ReflectionClass;
+use Yii;
 
 /**
  * Class Bot
@@ -119,9 +120,9 @@ class Bot extends Model
         $this->hearsKeyboard[$message] = ['message' => $message, 'personally' => $personally, 'closure' => $closure];
     }
 
-    public function hear($message, $closure, $personally = true)
+    public function hear($message, $closure, $personally = true, $strict = false)
     {
-        $this->hears[] = ['message' => $message, 'personally' => $personally, 'closure' => $closure];
+        $this->hears[] = ['message' => $message, 'personally' => $personally, 'closure' => $closure, 'strict' => $strict];
     }
 
     public function init()
@@ -137,28 +138,27 @@ class Bot extends Model
         $this->request = $json;
     }
 
-    public function process()
+    protected function processCallbackQuery($data)
     {
-        $this->init();
-        if (!empty($this->callback_query)) {
-            $data = $this->callback_query->data;
-            $arr = explode('?', $data);
-            if (isset($arr[1])) {
-                $params = StringHelper::parseQuery($arr[1]);
-            } else {
-                $params = [];
-            }
-            $command = explode('/', $arr[0]);
-            $button = $command[0];
-            $file = $this->buttonsFolder . DIRECTORY_SEPARATOR . StringHelper::camelize($button) . '.php';
-            $class = StringHelper::getClassFromFile($file);
-            $method = StringHelper::camelize($command[1]);
-
-            if (class_exists($class)) {
-                $class::run($method, array_merge([$this], $params));
-            }
+        $arr = explode('?', $data);
+        if (isset($arr[1])) {
+            $params = StringHelper::parseQuery($arr[1]);
+        } else {
+            $params = [];
         }
+        $command = explode('/', $arr[0]);
+        $button = $command[0];
+        $file = $this->buttonsFolder . DIRECTORY_SEPARATOR . StringHelper::camelize($button) . '.php';
+        $class = StringHelper::getClassFromFile($file);
+        $method = StringHelper::camelize($command[1]);
 
+        if (class_exists($class)) {
+            $class::run($method, array_merge([$this], $params));
+        }
+    }
+
+    protected function registerCommands()
+    {
         $dir = $this->commandsFolder;
         foreach (glob("$dir/*.php") as $file) {
             $class = StringHelper::getClassFromFile($file);
@@ -168,41 +168,92 @@ class Bot extends Model
                 call_user_func([$command, 'register'], $this);
             }
         }
+    }
 
-        if (empty($this->callback_query) && !empty($this->message)) {
-            $key = json_encode(['ask', $this->message->from->id]);
-            if ($closureData = static::getCacheValue($key)) {
-                $closureData = \Opis\Closure\unserialize($closureData);
-                if ($closureData['retries'] < 0) {
-                    static::getCache()->delete($key);
-                } else {
-                    $closureData['retries'] -= 1;
-                    static::setCacheValue($key, \Opis\Closure\serialize($closureData));
-                }
-                if (call_user_func($closureData['closure'], $this, $this->message->text ?? '')) {
-                    static::getCache()->delete($key);
-                }
+    protected function processAskClosure($closureData)
+    {
+        $closureData = \Opis\Closure\unserialize($closureData);
+        if ($closureData['retries'] < 0) {
+            static::getCache()->delete($key);
+        } else {
+            $closureData['retries'] -= 1;
+            static::setCacheValue($key, \Opis\Closure\serialize($closureData));
+        }
+        if (call_user_func($closureData['closure'], $this, $this->message->text ?? '')) {
+            static::getCache()->delete($key);
+        }
+    }
 
-                return '';
-            }
+    protected function processMessage()
+    {
+        $text = $this->message->text ?? '';
 
-            if (empty($this->message)) {
-                return '';
-            }
-
-            $text = $this->message->text ?? '';
-            foreach ($this->hears as $data) {
-                $message = $data['message'];
-
-                if ($data['personally'] && mb_strpos($text, $this->name, 0, 'UTF-8') === false && $this->message->chat->type !== 'private') {
-                    continue;
-                }
-                if (mb_strpos($text, $message, 0, 'UTF-8') !== false || $message === '*') {
-                    call_user_func($data['closure'], $this);
-                }
-            }
+        if (empty($this->hears)) {
+            Yii::error('No commands registered for bot ' . $this->name, 'telegram');
+            return;
         }
 
+        foreach ($this->hears as $data) {
+            $message = $data['message'];
+
+            if ($data['personally'] && mb_strpos($text, $this->name, 0, 'UTF-8') === false && $this->message->chat->type !== 'private') {
+                continue;
+            }
+
+            if (mb_strpos($text, $message, 0, 'UTF-8') !== false || $message === '*') {
+                call_user_func($data['closure'], $this);
+            }
+        }
+    }
+
+    protected function processJoinRequest()
+    {
+
+    }
+
+    protected function beforeRun()
+    {
+
+    }
+
+
+    protected function afterRun()
+    {
+
+    }
+
+    protected function run()
+    {
+        if (!empty($this->chat_join_request)) {
+            $this->processJoinRequest();
+            return;
+        }
+
+        if (!empty($this->callback_query)) {
+            $this->processCallbackQuery($this->callback_query->data);
+            return;
+        }
+
+        if (!empty($this->message) && ($closureData = static::getCacheValue(json_encode(['ask', $this->message->from->id])))) {
+            $this->processAskClosure($closureData);
+            return;
+        }
+
+        if (!empty($this->message)) {
+            $this->processMessage();
+        }
+    }
+
+    public function process()
+    {
+        $this->init();
+        $this->registerCommands();
+
+        $this->beforeRun();
+
+        $this->run();
+
+        $this->afterRun();
         return '';
     }
 }
