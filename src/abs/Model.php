@@ -9,6 +9,7 @@ use carono\telegram\helpers\StringHelper;
 abstract class Model implements \ArrayAccess
 {
     private $container;
+    private $_body;
 
     public function __get(string $name)
     {
@@ -49,6 +50,11 @@ abstract class Model implements \ArrayAccess
         return $this->container[$offset] ?? null;
     }
 
+    public function getBody()
+    {
+        return $this->_body;
+    }
+
     public function load($json)
     {
         if (is_string($json)) {
@@ -56,6 +62,7 @@ abstract class Model implements \ArrayAccess
         }
 
         if (!empty($json)) {
+            $this->_body = $json;
             foreach ($json as $attribute => $value) {
                 if (is_array($value)) {
                     $className = str_replace(' ', '', StringHelper::mb_ucwords(preg_replace('/[^\pL\pN]+/u', ' ', $attribute), 'UTF-8'));
