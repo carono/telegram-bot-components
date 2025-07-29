@@ -10,8 +10,7 @@ use carono\telegram\dto\Message;
 use carono\telegram\dto\MyChatMember;
 use carono\telegram\helpers\StringHelper;
 use carono\telegram\traits\CacheTrait;
-use ReflectionClass;
-use Yii;
+use Exception;
 
 /**
  * Class Bot
@@ -34,6 +33,8 @@ class Bot extends Model
     public $name;
     public $buttonsFolder;
     public $commandsFolder;
+
+    public $preventHearing = false;
 
     public function getClient()
     {
@@ -172,6 +173,8 @@ class Bot extends Model
 
     protected function processAskClosure($closureData)
     {
+        $key = json_encode(['ask', $this->message->from->id]);
+
         $closureData = \Opis\Closure\unserialize($closureData);
         if ($closureData['retries'] < 0) {
             static::getCache()->delete($key);
@@ -184,24 +187,52 @@ class Bot extends Model
         }
     }
 
-    protected function processMessage()
+    protected function hearingMessage($data)
     {
         $text = $this->message->text ?? '';
+        $message = $data['message'];
 
-        if (empty($this->hears)) {
-            Yii::error('No commands registered for bot ' . $this->name, 'telegram');
-            return;
+        if ($data['personally'] && mb_strpos($text, $this->name, 0, 'UTF-8') === false && $this->message->chat->type !== 'private') {
+            return false;
         }
 
-        foreach ($this->hears as $data) {
-            $message = $data['message'];
-
-            if ($data['personally'] && mb_strpos($text, $this->name, 0, 'UTF-8') === false && $this->message->chat->type !== 'private') {
-                continue;
+        if (mb_strpos($text, $message, 0, 'UTF-8') !== false || $message === '*') {
+            call_user_func($data['closure'], $this);
+            if (!empty($data['prevent'])) {
+                return true;
             }
+        }
+        return false;
+    }
 
-            if (mb_strpos($text, $message, 0, 'UTF-8') !== false || $message === '*') {
-                call_user_func($data['closure'], $this);
+    protected function processMessage()
+    {
+        if (empty($this->hears)) {
+            throw new Exception('No commands registered for bot ' . $this->name, 'telegram');
+        }
+
+        $defaultHears = array_filter($this->hears, function ($item) {
+            return $item['message'] != '*';
+        });
+        $broadcastHears = array_filter($this->hears, function ($item) {
+            return $item['message'] == '*';
+        });
+
+        foreach ($defaultHears as $data) {
+            if ($this->preventHearing) {
+                return;
+            }
+            if ($this->hearingMessage($data) === true) {
+                return;
+            }
+        }
+
+        foreach ($broadcastHears as $data) {
+            if ($this->preventHearing) {
+                return;
+            }
+            if ($this->hearingMessage($data) === true) {
+                return;
             }
         }
     }
@@ -234,8 +265,8 @@ class Bot extends Model
             return;
         }
 
-        if (!empty($this->message) && ($closureData = static::getCacheValue(json_encode(['ask', $this->message->from->id])))) {
-            $this->processAskClosure($closureData);
+        if (!empty($this->message) && ($closure = static::getCacheValue(json_encode(['ask', $this->message->from->id])))) {
+            $this->processAskClosure($closure);
             return;
         }
 

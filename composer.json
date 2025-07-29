@@ -11,6 +11,7 @@
     }
   ],
   "require": {
+    "php": ">=8.2.0",
     "telegram-bot/api": "@stable",
     "ext-json": "*",
     "ext-mbstring": "*",
@@ -20,11 +21,6 @@
   "autoload": {
     "psr-4": {
       "carono\\telegram\\": "src"
-    }
-  },
-  "config": {
-    "allow-plugins": {
-      "yiisoft/yii2-composer": true
     }
   }
 }
