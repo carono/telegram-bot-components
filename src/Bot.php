@@ -121,9 +121,15 @@ class Bot extends Model
         $this->hearsKeyboard[$message] = ['message' => $message, 'personally' => $personally, 'closure' => $closure];
     }
 
-    public function hear($message, $closure, $personally = true, $strict = false)
+    public function hear($message, $closure, $personally = true, $strict = false, $prevent = false)
     {
-        $this->hears[] = ['message' => $message, 'personally' => $personally, 'closure' => $closure, 'strict' => $strict];
+        $this->hears[] = [
+            'message' => $message,
+            'personally' => $personally,
+            'closure' => $closure,
+            'strict' => $strict,
+            'prevent' => $prevent
+        ];
     }
 
     public function init()

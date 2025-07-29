@@ -4,7 +4,7 @@ namespace carono\telegram\abs;
 
 use carono\telegram\Bot;
 
-abstract class Command extends \yii\base\Model
+abstract class Command
 {
     abstract public function register(Bot $bot);
 
